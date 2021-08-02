@@ -1,10 +1,14 @@
 import requests
 from datetime import datetime
+import json
+
+id = '552934290'
+token = '958eb5d439726565e9333aa30e50e0f937ee432e927f0dbd541c541887d919a7c56f95c04217915c32008'
 
 
 def get_date(date):
     ts = int(date)
-    return datetime.utcfromtimestamp(ts).strftime('%d-%m-%Y')
+    return datetime.utcfromtimestamp(ts).strftime('%d-%m-%Y %H-%M-%S')
 
 
 class VK:
@@ -21,6 +25,7 @@ class VK:
         self.url = 'https://api.vk.com/method/'
         self.photos = []
         self.photo_names = []
+        self.info_files = []
         self.create_request('photos.get')
 
     def create_request(self, METHOD):
@@ -44,12 +49,19 @@ class VK:
             if str(photo['name']) + '.jpg' in self.photo_names:
                 name = str(get_date(photo['date'])) + '.jpg'
                 self.photo_names.append(str(get_date(photo['date'])) + '.jpg')
+                self.info_files.append({'name': str(get_date(photo['date'])), 'size': photo['size']})
             else:
                 name = str(photo['name']) + '.jpg'
                 self.photo_names.append(str(photo['name']) + '.jpg')
+                self.info_files.append({'name': str(photo['name']), 'size': photo['size']})
             with open(name, 'wb') as file:
                 for chunk in data.iter_content():
                     file.write(chunk)
+        self.create_data_file(self.info_files)
+
+    def create_data_file(self, items):
+        with open('data.json', "w") as write_file:
+            json.dump(items, write_file)
 
     def get_photo_names(self):
         return self.photo_names
