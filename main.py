@@ -1,26 +1,32 @@
 import requests
-import os
+from datetime import datetime
 
-url = 'https://api.vk.com/method/'
-TOKEN = '958eb5d439726565e9333aa30e50e0f937ee432e927f0dbd541c541887d919a7c56f95c04217915c32008'
+
+def get_date(date):
+    ts = int(date)
+    return datetime.utcfromtimestamp(ts).strftime('%d-%m-%Y')
 
 
 class VK:
-    def __init__(self, token, id):
+    def __init__(self):
         self.params = {
-            'owner_id': id,
-            'access_token': token,
+            'owner_id': input('Введите id пользователя: '),
+            'access_token': input('Введите токен вк: '),
             'v': '5.77',
             'album_id': 'profile',
             'extended': '1',
-            'photo_sizes': '1'
+            'photo_sizes': '1',
+            'count': input('Введите количество фотографий: ')
         }
+        self.url = 'https://api.vk.com/method/'
         self.photos = []
+        self.photo_names = []
+        self.create_request('photos.get')
 
     def create_request(self, METHOD):
         print('Получаем файлы из VK...')
-        result = requests.get(url + METHOD, params=self.params)
-        return result.json()
+        result = requests.get(self.url + METHOD, params=self.params)
+        self.create_photo_info(result.json())
 
     def create_photo_info(self, data):
         for items in data['response']['items']:
@@ -29,39 +35,36 @@ class VK:
                     self.photos.append(
                         {'url': item['url'], 'name': items['likes']['count'], 'size': item['type'],
                          'date': items['date']})
-        return self.photos
+        self.create_files(self.photos)
 
+    def create_files(self, photos):
+        for photo in photos:
+            print(f'Создаем файл... {str(photo["name"]) + ".jpg"}')
+            data = requests.get(photo['url'])
+            if str(photo['name']) + '.jpg' in self.photo_names:
+                name = str(get_date(photo['date'])) + '.jpg'
+                self.photo_names.append(str(get_date(photo['date'])) + '.jpg')
+            else:
+                name = str(photo['name']) + '.jpg'
+                self.photo_names.append(str(photo['name']) + '.jpg')
+            with open(name, 'wb') as file:
+                for chunk in data.iter_content():
+                    file.write(chunk)
 
-input_id = input('Введите id пользователя: ')
-input_yatoken = input('Введите яндекс токен: ')
-vk = VK(TOKEN, input_id)
-data = vk.create_request('photos.get')
-photos = vk.create_photo_info(data)
-
-photo_names = []
-
-for photo in photos:
-    print(f'Создаем файл... {str(photo["name"]) + ".jpg"}')
-    data = requests.get(photo['url'])
-    if str(photo['name']) + '.jpg' in photo_names:
-        name = str(photo['date']) + '.jpg'
-        photo_names.append(str(photo['date']) + '.jpg')
-    else:
-        name = str(photo['name']) + '.jpg'
-        photo_names.append(str(photo['name']) + '.jpg')
-    with open(name, 'wb') as file:
-        for chunk in data.iter_content():
-            file.write(chunk)
+    def get_photo_names(self):
+        return self.photo_names
 
 
 class YaUploader:
-    def __init__(self, token):
-        self.token = token
+    def __init__(self, names):
+        self.token = input('Введите яндекс токен: ')
         self.headers = {'Accept': 'application/json', "Authorization": self.token}
         self.folder = ''
+        self.names = names
+        self.create_ya_folder()
 
-    def upload(self, names):
-        for name in names:
+    def upload(self):
+        for name in self.names:
             print(f'Загрузка {name} на сервер')
             params = {'path': 'photos/' + name}
             response = requests.get('https://cloud-api.yandex.net/v1/disk/resources/upload', params=params,
@@ -78,9 +81,9 @@ class YaUploader:
         params = {'path': 'photos'}
         response = requests.put('https://cloud-api.yandex.net/v1/disk/resources', params=params, headers=self.headers)
         self.folder = response.json().get('href')
+        self.upload()
 
 
 if __name__ == '__main__':
-    uploader = YaUploader(input_yatoken)
-    uploader.create_ya_folder()
-    uploader.upload(photo_names)
+    vk = VK()
+    disc = YaUploader(vk.get_photo_names())
